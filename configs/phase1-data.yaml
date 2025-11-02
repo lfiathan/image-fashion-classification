@@ -1,0 +1,18 @@
+import os
+
+# Dataset configuration
+DATASET_SLUG = 'nguyngiabol/colorful-fashion-dataset-for-object-detection'
+OUTPUT_PATH = './dataset'
+DATASET_ROOT = os.path.join(OUTPUT_PATH, 'colorful_fashion_dataset_for_object_detection')
+IMAGES_PATH = os.path.join(DATASET_ROOT, 'JPEGImages')
+ORIGINAL_ANNOTATIONS_PATH = os.path.join(DATASET_ROOT, 'Annotations_txt')
+
+# Training configuration
+TRAIN_EPOCHS = 50
+IMG_SIZE = 512
+BATCH_SIZE = 16
+WORKERS = 8
+PATIENCE = 10
+
+# Device configuration
+DEVICE = 'cuda' if torch.cuda.is_available() else ('mps' if getattr(torch.backends, 'mps', None) and torch.backends.mps.is_available() else 'cpu')
