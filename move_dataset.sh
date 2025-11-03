@@ -75,8 +75,63 @@ MAP
   fi
 done
 
+# --- Ensure 80/20 split: if a class lacks val images, move 20% from train -> val (deterministic seed) ---
+export TRAIN_DIR VAL_DIR
+
+python3 - "$TRAIN_DIR" "$VAL_DIR" <<'PY'
+import os, random, pathlib, sys
+random.seed(42)
+ALLOWED = {'.jpg', '.jpeg', '.png', '.bmp', '.webp'}
+
+train_dir = pathlib.Path(sys.argv[1])
+val_dir = pathlib.Path(sys.argv[2])
+
+# gather all class names present in either split
+classes = set()
+if train_dir.exists():
+    classes |= {p.name for p in train_dir.iterdir() if p.is_dir()}
+if val_dir.exists():
+    classes |= {p.name for p in val_dir.iterdir() if p.is_dir()}
+
+for cls in sorted(classes):
+    tdir = train_dir / cls
+    vdir = val_dir / cls
+    tdir.mkdir(parents=True, exist_ok=True)
+    vdir.mkdir(parents=True, exist_ok=True)
+
+    train_imgs = [p for p in tdir.iterdir() if p.is_file() and p.suffix.lower() in ALLOWED]
+    val_imgs = [p for p in vdir.iterdir() if p.is_file() and p.suffix.lower() in ALLOWED]
+
+    total = len(train_imgs) + len(val_imgs)
+    if total == 0:
+        continue
+
+    desired_val = int(total * 0.2)  # 20% to val
+    need = desired_val - len(val_imgs)
+    if need <= 0:
+        continue
+
+    # shuffle deterministically and move files from train -> val
+    random.shuffle(train_imgs)
+    to_move = train_imgs[:need]
+    for p in to_move:
+        dst = vdir / p.name
+        i = 1
+        while dst.exists():
+            dst = vdir / f"{p.stem}_{i}{p.suffix}"
+            i += 1
+        p.rename(dst)
+
+# print a brief summary
+print("80/20 split enforced. Current counts per class (train / val):")
+for cls in sorted(classes):
+    tcount = len([p for p in (train_dir/cls).iterdir() if p.is_file() and p.suffix.lower() in ALLOWED]) if (train_dir/cls).exists() else 0
+    vcount = len([p for p in (val_dir/cls).iterdir() if p.is_file() and p.suffix.lower() in ALLOWED]) if (val_dir/cls).exists() else 0
+    print(f" - {cls}: {tcount} / {vcount}")
+PY
+
 # Summary
-echo "---- Summary ----"
+echo "---- Final Summary ----"
 echo "Train counts per class:"
 for d in "$TRAIN_DIR"/*; do
   [ -d "$d" ] || continue
